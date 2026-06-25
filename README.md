@@ -6,7 +6,7 @@ Closed-source high-performance miner. Clean-room implementation; this repo distr
 - **Argon2id** — Blocknet (**BNT**), CPU.
 - **midstate VDF** — midstate (**MDS**), **CPU and NVIDIA GPU (CUDA)**.
 
-> **v1.7.1 — single binary, CPU + GPU.** The midstate GPU backend now uses the **CUDA Driver API**, so each platform ships **one** binary that does both CPU and GPU. **Windows now has GPU too** (same `--gpu` flag as Linux). No separate `-cuda` build anymore.
+> **v1.7.2 — single binary, CPU + GPU, ~100% GPU submission efficiency.** The midstate GPU backend uses the **CUDA Driver API**, so each platform ships **one** binary that does both CPU and GPU. **Windows has GPU too** (same `--gpu` flag as Linux). v1.7.2 fixes GPU share-submission efficiency: it now submits every winner found per batch and no longer discards in-flight work on same-tip job refreshes (V100 10-min live: 52 found / 52 accepted / 0 rejected).
 
 ## Download
 
