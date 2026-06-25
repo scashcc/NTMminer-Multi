@@ -1,7 +1,9 @@
 # NTMminer
 
-Closed-source high-performance CPU miner for **NeuroMorph (nm/1)** PoW — Cereblix (**CRB**).
-Clean-room implementation; this repo distributes **binaries only** (source is closed).
+Closed-source high-performance miner. Clean-room implementation; this repo distributes **binaries only** (source is closed).
+
+- **NeuroMorph (nm/1)** — Cereblix (**CRB**), CPU.
+- **midstate VDF** — midstate (**MDS**), **CPU and NVIDIA GPU (CUDA)**.
 
 ## Download
 
@@ -13,46 +15,56 @@ Get the binary for your platform from **[Releases](../../releases/latest)**.
 | Linux ARM64 | `NTMminer-linux-arm64` |
 | Windows x64 | `NTMminer-windows-x64.exe` |
 | macOS (Apple Silicon) | `NTMminer-macos-arm64` |
+| **Linux x64 + NVIDIA GPU (CUDA)** | **`NTMminer-cuda-linux-x64`** |
+| GPU consensus self-test (Linux x64) | `mid_gpu_selftest-linux-x64` |
 | Offline benchmark (Linux x64) | `nm_bench-linux-x64` |
 
-Linux/macOS builds are **statically linked** — no dependencies.
+CPU Linux/macOS builds are **statically linked** — no dependencies. The CUDA build needs only the **NVIDIA driver** at runtime (CUDA runtime is linked statically; no toolkit install required).
 
 ## Usage
 
+### CPU — NeuroMorph (CRB)
 ```
-NTMminer <pool_host> <pool_port> <wallet> [run_seconds] [threads] [lanes]
+NTMminer -o <host:port> -u <wallet> [--threads N] [--lanes N]
 ```
-
-Mine CRB on Cereblix:
 ```
 chmod +x NTMminer-linux-x64
-# auto threads (all logical cores), run forever:
-./NTMminer-linux-x64 asia.cereblix.com 3333 crb1YOUR_WALLET_ADDRESS
-# explicit threads (e.g. 96C/192T EPYC): run_seconds=0 = forever
-./NTMminer-linux-x64 asia.cereblix.com 3333 crb1YOUR_WALLET_ADDRESS 0 192 1
+./NTMminer-linux-x64 -o asia.cereblix.com:3333 -u crb1YOUR_WALLET_ADDRESS
 ```
 
-- `run_seconds`: `0` (or omit) = run forever
-- `threads`: **omit = auto (all logical cores)**; set explicitly for tuning
-- `lanes`: MLP batch per thread (default `1`; try `2` on big-L3 CPUs)
+### GPU — midstate (MDS) on NVIDIA / CUDA
+The midstate VDF is a GPU-friendly PoW (zero memory-hardness). Use the CUDA build with `--gpu`:
+```
+chmod +x NTMminer-cuda-linux-x64
+./NTMminer-cuda-linux-x64 -a midstate --gpu -o 103.80.18.140:3333 -u <YOUR_MSS_ADDRESS_HEX64>
+```
+- `-a midstate` selects the midstate algorithm; `--gpu` drives the CUDA engine.
+- `<YOUR_MSS_ADDRESS_HEX64>` = your 64-hex (32-byte) midstate payout address.
+- Native cubins for **sm_70 (V100) → sm_120 (RTX 50)** + PTX fallback; runtime auto-tunes the GPU.
+- The same `NTMminer-cuda-linux-x64` also mines on CPU (drop `--gpu`).
+
+**Verify GPU consensus (recommended before mining):**
+```
+chmod +x mid_gpu_selftest-linux-x64
+./mid_gpu_selftest-linux-x64        # expects: ALL PASS — GPU VDF == CPU scalar byte-for-byte
+```
 
 ### Benchmark (no pool needed)
 ```
 chmod +x nm_bench-linux-x64
 ./nm_bench-linux-x64 15           # 15s, all cores
-./nm_bench-linux-x64 15 192 1     # 15s, 192 threads, 1 lane
 ```
 
 ## Features
 
-- **x86-64 register-pinning JIT** — consensus-verified byte-identical to the reference
-- AES-NI / VAES (256/512) with runtime CPUID dispatch
-- **Huge pages on by default** (zero-config THP on Linux — no manual hugepage setup)
-- Cross-platform: Linux x64/arm64, Windows x64, macOS Apple Silicon
-- **0% dev fee** for CRB
+- **GPU (CUDA) backend for midstate** — multi-arch fatbin (V100 → Blackwell) + PTX fallback; consensus-verified byte-identical to the CPU scalar reference.
+- **x86-64 register-pinning JIT** (NeuroMorph) — consensus-verified byte-identical to the reference.
+- AES-NI / VAES (256/512) and AVX-512/AVX2 runtime CPUID dispatch.
+- **Huge pages on by default** (zero-config THP on Linux).
+- Cross-platform: Linux x64/arm64, Windows x64, macOS Apple Silicon (CPU); Linux x64 (GPU).
 
 ## Tips
 
-- Large-core CPUs (EPYC etc.): try threads = full SMT count; reserve hugepages for max throughput:
+- Large-core CPUs (EPYC etc.): try `--threads` = full SMT count; reserve hugepages for max throughput:
   `sudo sysctl -w vm.nr_hugepages=1024`
-- Disable huge pages for comparison: `NM_NOHUGE=1 ./nm_bench-linux-x64 15`
+- midstate is GPU-dominant by design — a mid-range GPU outpaces a top desktop CPU several-fold.
